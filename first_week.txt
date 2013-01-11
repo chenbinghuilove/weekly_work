@@ -1,0 +1,164 @@
+第一周从1月4号--------1月11号。
+
+2013年1月4号进入新浪，由于没有电脑，看了一天的书
+
+2013年1月5号，上午搞定了gedit和Vim的乱码问题，下午第一次开会，重新操作了一下github的操作。
+
+2013年1月6号，上午将之前写过的shell还有python上传到github上面去，下去准备源码安装mysql-server，多实例的，首先知道了mysql的一些数据都放在哪里了，数据库数据/var/lib/mysql,日志文件/var/log/mysql,mysql的系统工具/usr/bin/,mysql的配置文件/etc/mysql。
+这里的疑问就是在我源码安装各个文件都放在哪里，会不会跟以前版本的mysql冲突啊。冲突在哪里呢？2.8. 使用源码分发版安装MySQL  2.7. 在其它类Unix系统中安装MySQL
+
+2013年1月7号，上午在研究安装多实例的mysql服务，下午截至2点半搞定了。由于启动mysql多实例时有点儿麻烦，所以准备写一个shell脚本来控制下。遇到的问题：我的my.cnf文件里面已经注销了promp，可是为什么还在mysql中出现呢。
+root@zhou:~# mysqladmin -uroot -p
+mysqladmin: unknown variable 'prompt=mysql(\u@\h:\d)>'
+
+解决方案，这里我在配置prompt的时候放的位置不对，我放在了client的下面这是不对的。必须放在mysql下面才行了。这里是官方上面说的。
+
+问题二：就是在kill mysql服务的时候，每次总是要kill两次才行。不知道是怎么回事，并且启动service mysql stop的命令也不行。需要考虑的问题。
+
+这里的shell脚本还没有落实，想法想把mysql的启动脚本看明白，按照现有的文章自己写一个shell给自己用。
+
+2013年1月8日，上午上述的两个遗留问题得到解决，问题在于prompt的配置上面，这里我把那段话注销后，这两个问题就都没有了，还有kill的问题，做法只能是通过mysqladmin的命令来停下它。这里自己写了两个小的脚本来控制启动和停止mysql多实例的运行。
+下午任务：1.ssh命令的使用搞定它 2.mysql创建数据库
+下午，mysql的键表，数据类型，字符类型，导入导出等。
+1.生日计算过程：
+mysql(root@127.0.0.1:test)>select name,birth,curdate(),(year(curdate())-year(birth))-(month(birth)>month(curdate())) as age from pet;
+
+这种做法是不完善的，下面的方法是最晚上的，主要是运用了right函数来进行控制的。
+
+mysql(root@127.0.0.1:test)>select name,birth,curdate(),(year(curdate())-year(birth))-(right(birth,5)>right(curdate(),5)) as age from pet;
+
+2.三种方法来查询表中最大年龄的所在行，并输出。
+
+mysql(root@127.0.0.1:test)>select * from pet where birth=(select MAX(birth) from pet);
++--------+-------+---------+------+------------+-------+
+| name | owner | species | sex | birth | death |
++--------+-------+---------+------+------------+-------+
+| Chirpy | Gwen | bird | f | 1998-09-17 | NULL |
++--------+-------+---------+------+------------+-------+
+1 row in set (0.03 sec)
+
+mysql(root@127.0.0.1:test)>select * from pet order by birth desc limit 1;
++--------+-------+---------+------+------------+-------+
+| name | owner | species | sex | birth | death |
++--------+-------+---------+------+------------+-------+
+| Chirpy | Gwen | bird | f | 1998-09-17 | NULL |
++--------+-------+---------+------+------------+-------+
+1 row in set (0.00 sec)
+
+mysql(root@127.0.0.1:test)>select @max_birth:=max(birth) from pet;
++------------------------+
+| @max_birth:=max(birth) |
++------------------------+
+| 1998-09-17 |
++------------------------+
+1 row in set (0.01 sec)
+
+mysql(root@127.0.0.1:test)>select @max_birth ;
++------------+
+| @max_birth |
++------------+
+| 1998-09-17 |
++------------+
+1 row in set (0.00 sec)
+
+mysql(root@127.0.0.1:test)>select name ,birth from pet where birth=@max_birth;
++--------+------------+
+| name | birth |
++--------+------------+
+| Chirpy | 1998-09-17 |
++--------+------------+
+1 row in set (0.01 sec)
+
+3.my_print_defaults client mysql 的使用说明
+
+ my_print_defaults --defaults-file=/usr/local/mysql/data3307/my.cnf client mysql
+
+4.mysql用户手册看到了第5章了。
+
+ 
+
+1月9号。上午继续进行自己的计划看mysql用户手册，
+
+这里发现一个神器就是mysqld_multi这个命令，是mysql专门用来管理多实例的，相关的文档已经下载下来了，在基础知识积累哪里。以后要是想测试的话可以按照上面的步骤来做。
+
+mysqld_multi --example可以通过这样的命令来查询用法
+mysqlmanager也是一个非常好用的多实例控制工具，可是现在公司没有运用，这里就暂时跳过去把。
+在设置变量的时候发现版本是5.5.8的服务器不支持@这样的格式了：
+auto_increment_increment控制列中的值的增量值
+mysql(root@localhost:test)>SET @auto_increment_increment=10;
+Query OK, 0 rows affected (0.00 sec)
+
+mysql(root@localhost:test)>show variables like 'auto%';
++--------------------------+-------+
+| Variable_name | Value |
++--------------------------+-------+
+| auto_increment_increment | 1 |
+| auto_increment_offset | 1 |
+
+mysql(root@localhost:test)>set session auto_increment_increment=10;
+Query OK, 0 rows affected (0.00 sec)
+
+mysql(root@localhost:test)>show variables like 'auto%';
++--------------------------+-------+
+| Variable_name | Value |
++--------------------------+-------+
+| auto_increment_increment | 10 |
+| auto_increment_offset | 1 |
+
+ auto_increment_offset确定AUTO_INCREMENT列值的起点
+
+shell> telnet server_host 3306
+如果得到连接并得到一些垃圾字符，则端口打开着，则应从防火墙或路由器上关闭，除非你有合理的理由让它开着。如果telnet挂起或连接被拒绝，则端口被阻塞，这是你所希望的。
+
+tcpdump抓包工具的使用搞清楚，这里还有点儿问题。
+
+columns_priv这张表的作用是什么，
+
+上午看到5.7的位置，下面就是权限的管理了，要认真看，看明白了。
+
+下午实验室开会，没有到公司去，只是简单的看了下mysql的项目文档。
+
+ 
+
+1月10号，上午还是继续看mysql使用文档，权限管理模块。上午由于开会的缘故，没有及时完成任务，下午要继续加油了。
+
+当数据库的密码忘记以后，我们的做法就分为两步，首先是将服务器重新启动，启动的过程中需要加入--skip-grant-tables，然后直接登录到mysql客户端，修改mysql中的密码，修改时也是需要技巧的。
+
+mysql(root@localhost:(none))>set password for 'chen'@'localhost'=password('chen');
+ERROR 1290 (HY000): The MySQL server is running with the --skip-grant-tables option so it cannot execute this statement这样是不行的，我自己的猜想是没有这样的权限了。所以只有这样来做：
+
+mysql(root@localhost:mysql)>update user set password=password('123') where user='chen';
+Query OK, 0 rows affected (0.00 sec)
+Rows matched: 1 Changed: 0 Warnings: 0
+
+mysql(root@localhost:mysql)>flush privileges;
+Query OK, 0 rows affected (0.00 sec)
+
+如果你连接时指定主机名，但得到错误消息主机名未显示或为IP号，表示当MySQL服务器将IP号解析为客户端来名时遇到错误：
+
+shell> mysqladmin -u root -pxxxx -h some-hostname ver
+ Access denied for user 'root'@'' (using password: YES)
+ 在/etc/hosts中放入客户端名监测下我们的DNS配置的是否正确。
+mysqlbinlog工具来进行备份和恢复，他的一些具体的用法，可以使用help来查看，进行恢复的途径有三种：
+shell> mysqlbinlog hostname-bin.000001 hostname-bin.000002 | mysql
+另一个方法是直接生成一个sql脚本，然后在通过导入的方式进行回复就可以了：
+
+shell> mysqlbinlog hostname-bin.000001 >  /tmp/statements.sql
+shell> mysqlbinlog hostname-bin.000002 >> /tmp/statements.sql
+shell> mysql -e "source /tmp/statements.sql"
+load data infile
+
+搞定了mysql使用手册的第五章，权限问题和备份恢复。还有一些的mysql使用工具等。mysql的日志文件以及他们的用途。
+遗留问题是数据迁出后，我的恢复手段有几种。它们分别适用的场景是怎么样的。
+select * from user into outfile "/usr/local/mysql/backup";这里面的内容是春文本文件，需要使用load data infile这样的命令来进行操作，或者是使用mysql现成的mysqlimport进行恢复了。
+这里需要注意的是，在运用这两种方式来导入数据时，需要预先生成这样的表，才可以。这里我可以尝试下，表字段不一样是否可以啊。
+root@zhou:/usr/local/mysql/backup# mysqlimport -uroot -p123 -P3306 test chen.sql
+mysqlimport: Error: 13, Can't get stat of '/usr/local/mysql/data/test/chen.sql' (Errcode: 2), when using table: chen
+root@zhou:/usr/local/mysql/backup# perror 13;
+OS error code 13: Permission denied
+
+这里权限的问题，有待解决了。
+
+ 1月11号上午，搞定上次遗留下来的bug，并且继续对mysql的备份和恢复进行系统的复习回顾。
+
+ 
