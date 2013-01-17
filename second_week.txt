@@ -1,0 +1,204 @@
+1月14号：身体不适，没有上班，在实验室里查阅多实例管理的材料。
+
+1月15号：上午忙着办理入职手续，准备着手开始写多实例管理的调研报告，这里自己仅仅是对mysqld_multi的使用进行了测试，基本上可以使用了，一些测试数据在我的计划任务栏目中。
+下午准备书写调研报告。
+这里是mysqld_multi的所有选项：
+
+--no-defaults Do not read any defaults file
+--defaults-file=... Read only this configuration file, do not read the
+standard system-wide and user-specific files
+--defaults-extra-file=... Read this configuration file in addition to the
+standard system-wide and user-specific files
+Using:
+
+--example Give an example of a config file with extra information.
+--help Print this help and exit.
+--log=... Log file. Full path to and the name for the log file. NOTE:
+If the file exists, everything will be appended.
+Using: /usr/local/mysql/multi.log
+--mysqladmin=... mysqladmin binary to be used for a server shutdown.
+Since version 2.10 this can be given within groups [mysqld#]
+Using: 
+--mysqld=... mysqld binary to be used. Note that you can give mysqld_safe
+to this option also. The options are passed to mysqld. Just
+make sure you have mysqld in your PATH or fix mysqld_safe.
+Using: 
+Please note: Since mysqld_multi version 2.3 you can also
+give this option inside groups [mysqld#] in ~/.my.cnf,
+where '#' stands for an integer (number) of the group in
+question. This will be recognised as a special option and
+will not be passed to the mysqld. This will allow one to
+start different mysqld versions with mysqld_multi.
+--no-log Print to stdout instead of the log file. By default the log
+file is turned on.
+--password=... Password for mysqladmin user.
+--silent Disable warnings.
+--tcp-ip Connect to the MySQL server(s) via the TCP/IP port instead
+of the UNIX socket. This affects stopping and reporting.
+If a socket file is missing, the server may still be
+running, but can be accessed only via the TCP/IP port.
+By default connecting is done via the UNIX socket.
+--user=... mysqladmin user. Using: root
+--verbose Be more verbose.
+--version Print the version number and exit.
+
+多个实例的启动、关闭，版本是怎么判断的
+
+root@zhou:/usr/local/mysql/data3307# mysqld_multi start 3307-3308
+root@zhou:/usr/local/mysql/data3307# netstat -ltn
+激活Internet连接 (仅服务器)
+Proto Recv-Q Send-Q Local Address Foreign Address State 
+tcp 0 0 0.0.0.0:3307 0.0.0.0:* LISTEN 
+tcp 0 0 127.0.0.1:11211 0.0.0.0:* LISTEN 
+tcp 0 0 0.0.0.0:3308 0.0.0.0:* LISTEN 
+tcp 0 0 0.0.0.0:22 0.0.0.0:* LISTEN 
+tcp 0 0 127.0.0.1:631 0.0.0.0:* LISTEN 
+tcp6 0 0 :::80 :::* LISTEN 
+tcp6 0 0 :::22 :::* LISTEN
+
+关闭的方式：出现问题了，这里我关闭3307的端口的话，管不掉，关闭3308就直接可以关闭掉了。
+
+root@zhou:/usr/local/mysql# mysqld_multi stop 3307
+root@zhou:/usr/local/mysql# netstat -ltn
+激活Internet连接 (仅服务器)
+Proto Recv-Q Send-Q Local Address Foreign Address State 
+tcp 0 0 0.0.0.0:3307 0.0.0.0:* LISTEN 
+tcp 0 0 127.0.0.1:11211 0.0.0.0:* LISTEN 
+tcp 0 0 0.0.0.0:3308 0.0.0.0:* LISTEN
+
+这里：ok
+
+root@zhou:/usr/local/mysql# mysqld_multi stop 3308
+root@zhou:/usr/local/mysql# netstat -ltn
+激活Internet连接 (仅服务器)
+Proto Recv-Q Send-Q Local Address Foreign Address State 
+tcp 0 0 0.0.0.0:3307 0.0.0.0:* LISTEN 
+tcp 0 0 127.0.0.1:11211 0.0.0.0:* LISTEN 
+tcp 0 0 0.0.0.0:22 0.0.0.0:* LISTEN
+
+通过查看日志发现了问题所在，这里我的3308端口的服务没有密码，所以直接就可以关闭，而我的3307端口有设置密码所以，没有办法关闭，日志里面写的很清楚了。
+
+这里注意了，我们应该为mysqld_multi单独开通一个用户和密码，并且直接配置在mysql.cnf当中，这样的话就可以在关闭mysql服务的时候运用mysqladmin时直接附入用户和密码了。
+
+这里的report使用说明：
+
+root@zhou:~# mysqld_multi report
+Reporting MySQL servers
+MySQL server from group: mysqld3306 is not running
+MySQL server from group: mysqld3307 is not running
+MySQL server from group: mysqld3308 is not running
+
+截至下午3点半种，调研报告基本完成，需要进一步完善，还有就是python脚本全程控制这一块儿，有点儿麻烦。
+
+shell 脚本中循环的命令使用：第一种：for((i=0;i<=10;i++));do echo " 队列为${i}" ; done第二种：for i in $(seq 10) 其他的暂时没有用的就先放下了。
+
+这里还有一个问题就是mysqlmanager的客户端在我的服务器上面找不到呢，这里不知道是什么原因，
+
+明天继续自己的mysql的用户手册，同时尽快对shell的回顾。
+
+ 
+
+1月16号周三，上午准备练习sina团队中shell脚本的细节东西，
+
+这里遇到的问题是在install的脚本中，我的机子跑步了，原因是在寻找ip段的代码写的不是很对，原始的是：
+
+ifconfig eth1|awk '/inet/{print $2}'|awk -F":" '{printf "%s%s",$3,$4}这里涉及到我机子上面有ipv6的端口，所以它找到的两个而已。
+
+这里我又重新写了下，这里想要定位到一个特定的字符inet的话，只能使用：'/<inet/>'就ok了。
+
+root@zhou:~# ifconfig eth0 |grep '\<inet\>'|awk '{print $2}'|awk -F":" '{print $2}'
+10.217.99.225
+
+useradd命令的相关参数，-M是不建立使用者目录，-m则是如果没有使用者目录就自动添加，-g添加族群。-s是使用者所使用的shell名称。
+
+declare命令的说明：-a将后面的变量是array的数组类型，-i将后面的变量定义为整数变量，-x用法跟export一样，变成环境变量，-r，将变量设置为只可读。
+
+var=${str-expr} str为空时：var=           |str没有设置时：var=expr      |str设置时：var=$str
+
+var=${str:-expr} str为空时：var=expr  |str没有设置时：var=expr      |str设置时：var=$str
+
+var=${str+expr} str为空时：var=expr  |str没有设置时：var=              |str设置时：var=expr
+
+var=${str:-expr} str为空时：var=          |str没有设置时：var=              |str设置时：var=expr
+
+start shell脚本中的一段代码经过查验证明是正确的，就是在判断mysql的版本是5.0、5.1、5.5，这段代码是这样写的：
+
+plugin=` sudo /bin/ls $mysql_datadir/data${port}/mysql |grep plug -i`  #用来判断mysql数据库中是否又这个表plug
+
+proxies_priv=` sudo /bin/ls $mysql_datadir/data${port}/mysql |grep proxies_priv -i` #用来判断mysql数据库中是否又这个表proxies_priv
+
+if [ -z "$plugin" ] && [ -z "$proxies_priv" ];then
+_version=5.0
+elif [ -z "$plugin" ];then
+_version=5.1
+else
+_version=5.5
+fi
+
+这里一定要注意shell脚本中if的语法，中间出现过一次问题，就是空格的问题，一定要注意了。
+
+截至2点钟，将start shell脚本看明白了。准备继续学习mysql使用手册。想到了上周好像还有mysql的备份和恢复没有看完呢，继续搞定这一块儿。
+
+接着上周的研究，mysql的备份和恢复的话，这里选择mysqldump和mysqlhotcopy两种工具，两者使用的范围是不一样的，其中mysqlhotcopy是针对myisam的表的，命令参数也相对简单。这里的mysqlhotcopy来备份innodb表的话，不会发生任何操作的。
+
+但是这里的mysqldump就相对复杂一点儿了。涉及到的问题相对来说较多，而且参数选项还很多，导出时需要注意导出字符，导出格式，以及相应的快捷方式--opt等信息。
+
+问题1，这里遇到一个问题就是在我配置开启了binlog后，通过mysqld_multi进行启动的时候只有mysql3306的端口起来了binlog这个日志，也就是说3307和3308都没有通过他们的配置文件进行正常启动了。所以这里还是mysqld_multi没有配置成功。
+
+问题2，这里在使用mysqlbinlog进行恢复时，出现的问题。初步判断是主键重复的问题，寻找解决办法…………
+
+root@zhou:/usr/local/mysql/data3307# mysqlbinlog --stop-date="2013-01-16 16:12:55" mysql-bin.000001 |mysql -h127.0.0.1 -P3307 -uroot -p123
+ERROR 1062 (23000) at line 45: Duplicate entry '8' for key 'PRIMARY'
+
+这里我的做法是直接在mysql库中删除掉了这个id=8的数据，后重新进行恢复就可以了。可是这里的错误我始终没有找到问题在哪里。
+
+还有就是在查看数据库中插入的最后一条信息时，使用的语句是可是使用show create table shirt;还有就是select last_insert_id();这里它不是特别的准确。所以需要确定好以后再确定啊。
+
+想起来上次高鹏给我说的一个问题，当遇到有些日志文件不能自动重建扩展的情况，我们的做法就是：
+
+shell> mv hostname.log hostname-old.log
+shell> mysqladmin flush-logs
+shell> cp hostname-old.log to-backup-directory
+shell> rm hostname-old.log
+这样就可以解决日志逐渐变大的情况了。
+ 
+
+1月17号 周四，上午还是按照计划进行shell脚本的学习，研究下脚本中参数的使用情况，getopts的具体使用方法。注意两个参数OPTION和OPTARG，其中OPTION是选项，OPTARG是参数。
+
+while getopts a:b:c:d:f OPTION
+do
+case "$OPTION" in
+a) echo "your option contain a,with the values is $OPTARG";;
+b) echo "your option has b,with the values is $OPTARG";;
+
+效果如下：root@zhou:/scripts/mysqlDBA# bash getopts_test.sh -a chen
+your option contain a,with the values is chen
+
+其中这里还有问题就是vim的使用部分字符串替代（:n1,n2s/word1/word2/g）和全部字符串替换(:1,$s/word1/word2/g)，模块选取(ctrl+v)和复制(y是选取复制，yy是复制整行)粘贴(p)等。
+
+问题1，shell中函数调用问题。此处需要注意下，在shell的函数模块哪里，如果想调用一个函数，那么这个函数必须在调用段落之前已经被定义了。就好比自己的写的getopts_test.sh这个脚本我想调用判断中usage，那么必须在这个判断语句前定义这个usage函数才行。详细信息在我的git服务器上面。
+
+刚才见识了下新浪的自动化管理的工作流程，真爽啊，太厉害了，我们现在的操作都是浮云哪，学习好好研究下。
+
+搞清楚这几个问题：
+
+还是一些基本的应用：iostat,vmstat,top，里面的每个参数都是什么个意思，都要清楚明白才行top中cpu排序啊，内存排序啊等等这些。还有raid卡的类型以及好处主要针对10,5了解清楚，去掉swap空间。eth0是内网ip，eth1是外网的ip
+
+这里top中的一些使用技巧，M表示按照内存排序，P按照cpu排序.
+
+iostat主要注意它选项内容，%util太大的话，说明产生的I/O请求太多，I/O系统已经满负荷，该磁盘可能存在瓶颈。 %idle 也就是空闲率是多大，svctm是平均服务时间，await是平均等待时间。这里总的IO请求是r/s(读) +w/s(写)。如果 svctm 比较接近 await，说明I/O 几乎没有等待时间；如果 await 远大于 svctm，说明 I/O队列太长，应用得到的响应时间变慢。
+
+vmstat主要是定时的查看服务器的状态信息包括cpu的使用率，内存使用情况，io读写情况，虚拟内存交换情况等。
+
+root@zhou:/usr/local/mysql# vmstat 2 3
+procs -----------memory---------- ---swap-- -----io---- -system-- ----cpu----
+r b swpd free buff cache si so bi bo in cs us sy id wa
+0 0 299516 93324 11452 230212 2 7 43 23 280 428 5 2 92 2
+1 0 299516 93324 11460 230188 0 0 0 18 447 561 4 3 93 1
+0 0 299516 88984 11460 235028 0 0 0 6 457 531 4 2 95 0
+
+其中r表示运行队列，当这个值超过了CPU数目，就会出现CPU瓶颈了。b表示阻塞进程，swpd 虚拟内存已使用的大小，如果大于0，表示你的机器物理内存不足了。us 用户CPU时间，也就是利用率吧，sy 系统CPU时间，id  空闲 CPU时间，id + us + sy = 100。
+
+ 
+
+ 
