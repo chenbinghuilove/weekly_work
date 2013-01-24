@@ -1,0 +1,208 @@
+1月21号，周一上午的主要任务是各种权限的申请，真是麻烦哪，今儿要做的工作就是mysql_multi的代码分析，还有就是mysql版本查看情况。这里在研究了mysqld_multi的启动脚本的详细信息后发现，mysqld_multi直接调用了配置文件中指定的mysqld-safe的命令，在比较了多实例启动的过程后，我们发现在启动多实例的时候命令是：/usr/local/mysql/bin/mysqld_safe --defaults-file=/usr/local/mysql/data3307/my.cnf指定了mysql的配置文件的路径。所以要想在mysqld_multi中正常的启动，我们必须加入各个实例的配置文件才行。这里需要研究mysqld_multi和mysqld、mysqld_safe的脚本给研究下，看看各个启动的情况是怎么样的。
+通道服务申请：研发-系统运维变更下面的任务-服务请求-帐号管理
+头儿开会的目标和方向：1.shell的经典命令，2.py模块学习.3.第三版mysql高性能学习讲解.4.网上大牛的ppt学习分享。
+明确了这周的一个方向是：shell的ppt学习深入。mysql的ppt的学习深入。
+权限这一块儿对于DBA来说是非常重要的，所以要好好的学习他。4点开始在高鹏的启发下，又对mysql的权限问题进行了研究，就是user、db、host主要是这三张表来控制，其中user、db表是大的包容小的，意思就是说：如果在user中有了权限那么不需要在db表中进行限定了，如果在db表中限定了，那么在user表中也会有个体现，这个体现可以通过usage来体现的：
+mysql(root@localhost:mysql)>grant select,insert,update on test.* to 'xiao'@'11.11.1.11' identified by '123';
+Query OK, 0 rows affected (0.39 sec)
+
+mysql(root@localhost:mysql)>show grants for 'xiao'@'11.11.1.11';
++--------------------------------------------------------------------------------------------------------------+
+| Grants for xiao@11.11.1.11 |
++--------------------------------------------------------------------------------------------------------------+
+| GRANT USAGE ON *.* TO 'xiao'@'11.11.1.11' IDENTIFIED BY PASSWORD '*23AE809DDACAF96AF0FD78ED04B6A265E05AA257' |
+| GRANT SELECT, INSERT, UPDATE ON `test`.* TO 'xiao'@'11.11.1.11' |
++--------------------------------------------------------------------------------------------------------------+
+
+还有就是process这个权限也是不能附给一般用户的，有可能看到一些密码啊、权限等细节的操作。
+
+就是一个常用的命令在忘记密码的时候我们可以使用mysqld --skip-grant-tables 直接输入用户不需要密码就可以直接登录的服务端了。
+
+ 
+
+1月22号，周二上午按照计划继续进行shell的ppt学习，下午学习mysql的ppt，预计这周搞定这两个ppt的内容以及深入的知识点。
+
+man -f 与man -k的命令使用情况：man -f 相当于whatis这个命令是一个简单的描述罢了；
+
+root@zhou:/usr/local/mysql/bin# man -f apropos
+apropos (1) - search the manual page names and descriptions
+root@zhou:/usr/local/mysql/bin# man -f man
+man (7) - macros to format man pages
+man (1) - an interface to the on-line reference manuals
+
+这里的man -k name 则相当于apropos这个命令是找到含有name的这个命令：我们可以在忘记某个命令时采取这个命令来找到这个命令的全程。大致就是这么一个意思了。还有一点就是在使用这些命令的时候想到了file和type这两个命令了。其实也是挺好用的
+
+root@zhou:/usr/local/mysql/bin# man -k git
+Git (3pm) - Perl interface to the Git version control system
+git (1) - the stupid content tracker
+git-add (1) - Add file contents to the index
+git-am (1) - Apply a series of patches from a mailbox
+git-annotate (1) - Annotate file lines with commit information
+
+man-->info-->help-->google尽量多的查看英文文档来逐渐适应。
+
+crontab惯例执行操作，它的使用说明就是 crontab -e -l -u -r 。一般我们的操作就是先看下有没有crontab的操作，crontab -l 然后直接crontab -e直接进入文档进行编译，执行的话我们可以使用crontab -i进行尝试测试。
+
+watch是实时监控命令的运行结果。主要是方便我们进行监控，而避免重复性的输入命令来操作。
+
+screen是用来管理长任务的一种常用的方法，为了不再中间因为断网而无法继续进行任务执行。这里通过测试发现了所有的操作都是在ctrl+a开始，比如说想要切换到screen之前的环境，那么我们要做的就是ctrl+a+d就可以做到。然后，我们直接exit退出这个用户的终端，那么这里的screen管理的任务是不会停止，当我们重新以这个用户登录时，就可以通过screen -ls看到这样的操作了。所以可以说要进行长任务的操作，而又怕因为断网或者是其他的原因中断就可以尝试采用这样的操作。这里的C-a是指ctrl+a的命令，通过screen -r +sessionid就可以打开我们之前创建的session了。
+
+因此当我们有些任务没有完成的时候，我们可以使用screen这个命令工具进行操作，当关闭了ssh或者telnet登录时，这个用户名下的screen还在远程运行着，当再次通过ssh或者telnet链接时就方便多了。
+
+C-a c -> Create，开启新的 window
+C-a n -> Next，切换到下个 window
+C-a p -> Previous，前一个 window
+more.. 
+C-a C-a -> Other，在两个 window 间切换
+C-a w -> Windows，列出已开启的 windows 有那些
+C-a 0 -> 切换到第 0 个 window
+C-a 1..9 -> 切换到第 1..9 个window
+C-a a -> 发出 C-a，在 emacs, ve, bash, tcsh 下可移到行首
+C-a t -> Time，显示当前时间，和系统的 load
+C-a K(大写) -> kill window，强行关闭当前的 window
+
+ ssh的信任问题：这是一个很好用的操作，这样做的目的就是免去了密码的输入这一项工作，做法就是利用ssh-keygen在本机上面生成一个公钥id_rsa.pub和私钥id_rsa。然后将公钥远程scp发送到想要登录的主机上面去。rsa加密是不对称加密，意思是说公钥加密只能私钥解密。
+
+SSH1使用RSA加密密钥，SSH2使用数字签名算法（DSA）密钥保护连接和认证。
+
+这里下载了一篇比较详细的ssh的原理文章在mysqlDBA基础知识积累里面了。哪里不懂的话可以再看看强化下。
+
+[root@xyh .ssh]#scp id_rsa.pub  10.210.213.86：/root/.ssh/
+在服务器上将本机的公钥更名为
+[root@xyh .ssh]#mv id_rsa.pub authorized_keys
+<3>至此从本机远程SSH 服务器的工作即告完成
+
+研究下公钥私钥的原理问题：这里有一个很好用的例子：
+
+例如:比如有两个用户Alice和Bob，Alice想把一段明文通过双钥加密的技术发送给Bob，Bob有一对公钥和私钥，那么加密解密的过程如下：
+Bob将他的公开密钥传送给Alice。
+Alice用Bob的公开密钥加密她的消息，然后传送给Bob。
+Bob用他的私人密钥解密Alice的消息。
+那么Bob怎么可以辨认Alice是不是真人还是冒充的.我们只要和上面的例子方法相反就可以了.
+认证的过程；
+Alice用她的私人密钥对文件加密，从而对文件签名。
+Alice将签名的文件传送给Bob。
+Bob用Alice的公钥解密文件，从而验证签名。
+通过例子大家应该有所了解吧!
+这里发现当第一次链接一个服务器时：会发现这样的命令
+root@zhou:~/.ssh# ssh root@10.210.213.85
+The authenticity of host '10.210.213.85 (10.210.213.85)' can't be established.
+RSA key fingerprint is 7b:02:9c:f1:29:02:e8:fe:fa:3a:b7:da:b1:a1:d3:0a.
+Are you sure you want to continue connecting (yes/no)?
+
+这边会接受到服务器端的一个公钥信息，客户端会自己生成一个通信密钥并用服务器端公钥加密再发给服务器端，服务器端通过自己相对应的私钥来解密，得到这个通信密钥，同时通过这个通信密钥小道进行通过，通过要求客户端发送用户名和密码来进行验证。它的通信过程可以在一张图中呈现出来，比较清晰。
+
+du与df，再用win用习惯了以后我们希望看到，某个目录中的文件大小啊，总计大小啊等等，这时就需要用到du和df这两个命令了。
+
+root@zhou:~# du -h -d1     这里-h是适合的单位来表示，-d则是指定遍历深度 -s是总计大小
+48K ./.subversion                       
+4.0K ./.gnome2
+8.0K ./.cache
+1.7M ./.ssh
+
+当然我们可以使用ll的命令来表示 
+
+root@zhou:~# ll -h 这里ll罗列出来的信息是所有可见不可见的文件的信息，而du -hd 1则是可见的文件的信息。
+总用量 192K
+drwx------ 16 root root 4.0K 1月 22 17:04 ./
+drwxr-xr-x 26 root root 4.0K 1月 22 15:39 ../
+-rw------- 1 root root 28K 1月 22 18:18 .bash_history
+-rw-r--r-- 1 root root 3.2K 1月 7 17:05 .bashrc
+
+dd是一个很复杂的命令，明天过来搞定它，必须做到认认真真的，知道怎么用，知道为什么这么用。在什么场合下去使用它。
+
+ 
+
+1 月23号  周三 上午终于搞定了邮箱，通道机，wiki，jira等权限问题。现在要做的就是等待这测试机的权限，上午继续看shell的ppt，看到了wc的命令，wc默认的输出：lines（行数） word（单词数） character（多少字符）。还有一些使用的选项 -L是找出最长行的长度。
+
+time有两种命令一种是bash中自带的能够显示--实际执行时间，用户时间和系统时间，还有一种是程序中的/usr/bin/time中的，他们的使用范围不一样。可以通过测试来尝试下:
+
+root@zhou:/# /usr/bin/time -v wc /etc/hosts
+9 25 219 /etc/hosts
+Percent of CPU this job got: 0%  #cpu的用时
+Major (requiring I/O) page faults: 1 #从磁盘上面读取的page数
+Minor (reclaiming a frame) page faults: 215 #从缓存中读取的page数
+Swaps: 0  #和swap的交换
+File system inputs: 16
+File system outputs: 0
+Page size (bytes): 4096  #page的大小
+
+ scp远程拷贝，这里我们可以改变文件的名称：这里如果是一个文件夹的话就直接使用-r遍历所有的目录
+
+root@zhou:/scripts# scp /scripts/ping.sh 10.210.213.86:/home/lingxiao/chen.sh
+root@10.210.213.86's password: 
+ping.sh                                                                                                                     100% 307 0.3KB/s 00:00
+
+dd是用来复制和转换的。if是输入文件，of是输出文件，bs是指定每次输入输出的块大小，cbs是每次转换的比特数，count是总共传输多少数量。
+
+块和字节数后可能带有以下的一个或多个后缀：c =1, w =2, b =512, kB =1000, K =1024, MB =1000*1000, M =1024*1024, xM =M
+GB =1000*1000*1000, G =1024*1024*1024,下面例子是用来测试硬盘的读写速度的，if=/dev/zero不产生IO，因此可以用来测试纯写速度。同理of=/dev/null不产生IO，可以用来测试纯读速度。其中/dev/zero是一个伪文件，可以不间断的产生null流，无穷的产生0字节流。相对应的/dev/null则是一个黑洞，可以把不许要的信息都放到这个文件中。
+
+root@zhou:~/shell# time dd if=/dev/zero bs=1024 count=1000000 of=/1Gb.file
+记录了1000000+0 的读入
+记录了1000000+0 的写出
+1024000000字节(1.0 GB)已复制，30.0419 秒，34.1 MB/秒
+
+real 0m30.359s
+user 0m0.536s
+sys 0m4.836s
+
+cpio就是copy-out和copy-in的情况，就是存取归档包了。经常性的备份文件而已,同时我们反过来可以用来进行恢复
+
+经常与find合用，进行备份，和恢复。
+
+进程管理：pidof(用于查找一个运行的程序的PID) wait fuser(使用文件或者套节字来表示识别进程)利器。
+
+strace常用来跟踪进程执行时的系统调用和所接收的信号。 在Linux世界，进程不能直接访问硬件设备，当进程需要访问硬件设备(比如读取磁盘文件，接收网络数据等等)时，必须由用户态模式切换至内核态模式，通 过系统调用访问硬件设备。strace可以跟踪到一个进程产生的系统调用,包括参数，返回值，执行消耗的时间.
+
+系统监控：dstat,vmstat,iostat,lsof等，要熟悉其中的选项的意思。
+
+系统之间的传输问题：nc,scp,wget,lftp等操作。nc -p建立通道 -l监听端口，因此他们之间的传输就可以这样来就是在服务器启动nc的监听服务和端口，在本机上面去传输到这个端口并且进行传输。例如：
+
+在10.210.213.86上面建立[root@vm12120096 chen]# nc -d -l 12345 > chen/test.txt这里通过尝试发现只能是定义好一个文件名，
+
+然后在本机上面；root@zhou:/home/zhouqian# nc 10.210.213.86 12345 < chen.txt 。这里有个问题怎么样传输目录文件呢。继续进行尝试。发现nc没法传输目录文件，要是想要传输的话只能是压缩了。搞定了。
+
+2、克隆硬盘或分区
+操作与上面的拷贝是雷同的，只需要由dd获得硬盘或分区的数据，然后传输即可。
+克隆硬盘或分区的操作，不应在已经mount的的系统上进行。所以，需要使用安装光盘引导后，进入拯救模式（或使用Knoppix工具光盘）启动系统后，在server2上进行类似的监听动作：
+
+# nc -l -p 1234 | dd of=/dev/sda
+
+server1上执行传输，即可完成从server1克隆sda硬盘到server2的任务：
+
+# dd if=/dev/sda | nc 192.168.228.222 1234
+
+ scp(rcp)也是一种远程copy的工具，能够指定将本机的文件传输到远程服务器上面去，
+
+root@zhou:/home/zhouqian# scp backup root@10.210.213.86:/chen/ 注意命令的格式，就没有什么难处了，可是这里要处理目录
+root@10.210.213.86's password: 
+backup 100% 1536 1.5KB/s 00:00
+
+root@zhou:/home/zhouqian# scp -r python/ root@10.210.213.86:/chen/ 只要在前面加以个-r遍历所有的文件。
+root@10.210.213.86's password: 
+getoptTest.py 100% 1159 1.1KB/s 00:00 
+uniFile.py 100% 282 0.3KB/s 00:00 
+MyStack.py 100% 1306 1.3KB/s 00:00
+
+ rsync是类unix系统下的数据镜像备份工具，从软件的命名上就可以看出来了——remote sync
+
+echo颜色这个地方有两种表示方式：root@zhou:/home/zhouqian# echo -e "\e[33;44m chenbinghui \e[0m"  这种前面是字体后是背景
+
+root@zhou:/home/zhouqian# echo -e "\033[44;22m llllllllll \033[0m" 这种前面是背景后面是字体。
+
+find / -perm +7000 -exec ls -l {} \;这里从-exec 一直到\;表示find命令内的额外的命令。这里{}是将find找到的一些信息放入到{}进行操作了。
+
+ 
+
+ 1月24号  周四 上午开了一上午的会，要看的东西没有看，所以下午要继续加油了。
+
+xargs的使用技巧和用途
+
+vimdiff的使用途径：在我的ubuntu上面必须使用vimdiff -d leftfile  rightfile 就会比较性的出现左右两个编辑窗口，以行为单位进行对比，如果是相同就罗列，只是罗列出不同的行。然后在进行编辑
+
+split的使用技巧：split的使用场景就是将打文件分解成一个个小的文件，默认的情况下是以1000行为一个单位进行分解的。其中-l是行数分开，-b是按照文件大小进行,split -m对排序的文件进行合并。
+
+shell的ppt搞定。可是里面还有一些细节看了忘，要重复着去看。下面抓紧练习，练习，在练习
+
+接到任务让对线上的从库在做一个从库，并且备份从库的所有数据。今儿就不做了，预计明天一天搞定它。呵呵，小小挑战开始了。
