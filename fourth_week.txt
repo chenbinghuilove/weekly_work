@@ -1,0 +1,187 @@
+1月28号 周一，今天的任务就是继续理清楚刚哥布置的任务逻辑，争取能开始写脚本工作。就现在的理解来看准备分为两个脚本来写，一个是分割日志脚本，另一个是搬运日志脚本，分别使用crontab进行每天定时的检测和工作，其中包括一些系统性能检测的实现。
+首先是性能判断，cpu、磁盘容量、磁盘IO的系数检测。
+检测磁盘IO
+bi 从块设备读入数据的总量（读磁盘）（每秒kb）。
+bo 块设备写入数据的总量（写磁盘）（每秒kb）
+这里我们设置的bi+bo参考值为1000，如果超过1000，而且wa值较大应该考虑均衡磁盘负载，可以结合iostat输出来分析。
+iostat -x 1 1 |grep '\<sda\>'|awk '{print $12}' 1.31
+检测磁盘容量
+监控硬盘的命令：[shixi_binghui@titan27 dbCluster]$ df -h |grep 'data1'|awk '{print $4}'         252G
+检测cpu的使用率
+cpuusr=`/usr/bin/sar -u 1 3 |grep Average|awk '{print $3}'`
+cpusys=`/usr/bin/sar -u 1 3 |grep Average|awk '{print $5}'`
+
+cpusum=$cpuuser + $cpusys
+
+这里还有一个问题是if的语法既然也出现错误了：结果发现还是自己的知识不牢固了。if的语法问题这里是
+
+一个书写模式是：
+if ....
+ then .... 
+elif ....
+ then .... 
+else .... 
+fi
+另一个是：
+if ....;then
+echo:
+elif ...
+echo:
+elif
+echo ...
+fi
+还有一个就是shell脚本中的算数运算，该如何去做。就是使用expr这个命令进行的。
+
+shell脚本报错的原因是：0.02 integer expression expected 这里的意思是小数跟整数进行比较，就会报错这里的做法.我们只能是通过awk进行控制
+
+cpusum=`expr $cpuuser+$cpusys |awk -F "." '{print $1}'`
+if [ $cpusum -lt $cpuMax ]
+then
+cpustatus=nice
+else
+cpustatus=bad
+fi
+
+##########check io status##########
+ioUsage=`iostat -x 1 1 |grep '\<sda\>'|awk '{print $12}'|awk -F "." '{print $1}'`
+
+系能检测终于搞定了，下面就是梳理需求，然后进行编码了。加油吧
+
+截至上午11点半之前，把系统检测的函数搞定，下午进过与刚哥的交流最终确定下来了，脚本的一个总体设计包括：系能检测、日志切分、日志的搬运。下午4点多实验室集会没有在公司进行继续编写，明天的目标就是争取把脚本初步搞定。
+
+ 
+
+1月29号 周二，今天的目标就是初步搞定脚本的编写，回家过个好年吧。
+
+关于日志迁移问题：这里我使用的是binlog的处理方式：进过测试这个做法完全可行。
+
+shell> mv hostname.log hostname-old.log
+shell> mysqladmin flush-logs
+shell> cp hostname-old.log to-backup-directory
+shell> rm hostname-old.log
+这样就可以解决日志逐渐变大的情况了。
+ 日志的启动和停止： 进过测试这种方法完全可行
+
+[shixi_binghui@titan27 querylog]$ mysqlha_login.sh -P 7999 -e "set global general_log=on"
+[shixi_binghui@titan27 querylog]$ mysqlha_login.sh -P 7999 -e "set global general_log=off"
+[shixi_binghui@titan27 querylog]$ mysqlha_login.sh -P 7999
+Welcome to the MySQL monitor. Commands end with ; or \g.
+Your MySQL connection id is 29
+Server version: 5.5.12-log MySQL Community Server (GPL)
+
+Copyright (c) 2000, 2011, Oracle and/or its affiliates. All rights reserved.
+
+Oracle is a registered trademark of Oracle Corporation and/or its
+affiliates. Other names may be trademarks of their respective
+owners.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+mysql> show variables like 'general%';
++------------------+------------------------------+
+| Variable_name | Value |
++------------------+------------------------------+
+| general_log | OFF |
+| general_log_file | /data1/mysql7999/titan27.log |
++------------------+------------------------------+
+2 rows in set (0.00 sec)
+
+这里需要检测下rsync的情况，是否存在这样的一个进程：进过测试这种方法完全可行。
+
+ps -ef |grep 'rsync' || result=0 && result=1
+75 if [ "$result" == 1 ]
+76 then
+77 echo "当前有rsyne进程存在">> $log_file
+78 else
+79 echo "当前的rsync进程空闲，可以进行传输">>$log_file
+80 fi
+
+远程传输的问题，这里技术不是问题，关键是逻辑关系
+
+这里遇到了问题，我的逻辑不是很清楚了，截至12点切分query日志的任务搞定了，这里我需要把刚刚切分的日志文件搬到一个容器中/data1/dbatemp/querylog这个目录下面去。这样一来，每次我都会去扫一下这个目录下的文件。然后按照时间先后顺序进行rsync到远程去。
+
+这里是检测query日志是否打开，进过测试这种方法可行。
+
+[shixi_binghui@titan27 mysql7999]$ mysqlha_login.sh -P 7999 -e "show variables like 'general%'"
++------------------+------------------------------+
+| Variable_name | Value |
++------------------+------------------------------+
+| general_log | ON |
+| general_log_file | /data1/mysql7999/titan27.log |
++------------------+------------------------------+
+
+[shixi_binghui@titan27 mysql7999]$ mysqlha_login.sh -P 7999 -e "show variables like 'general%'" |grep general_log
+general_log ON
+general_log_file /data1/mysql7999/titan27.log
+[shixi_binghui@titan27 mysql7999]$ mysqlha_login.sh -P 7999 -e "show variables like 'general%'" |grep '\<general_log\>'
+general_log ON
+[shixi_binghui@titan27 mysql7999]$ mysqlha_login.sh -P 7999 -e "show variables like 'general%'" |grep '\<general_log\>'|awk '{print $2}'
+ON
+
+进过思考，发现这里还需要一个函数就是为了获取到当前传输的文件，经过测试这种方法可行
+
+[shixi_binghui@titan27 mysql7999]$ ll -t|grep 'mysql'|sed '1q'|awk '{print $9}'
+titan27.log
+[shixi_binghui@titan27 mysql7999]$ ll -t
+total 4100080
+-rw-rw---- 1 my7999 mysql 1708 Jan 29 13:50 titan27.log
+-rw-rw---- 1 my7999 mysql 150 Jan 29 11:41 mysql-bin.000005
+-rw-rw---- 1 my7999 mysql 107 Jan 29 11:41 mysql-bin.000006
+-rw-rw---- 1 my7999 mysql 114 Jan 29 11:41 mysql-bin.index
+-rw-rw---- 1 my7999 mysql 1140 Jan 29 11:41 slow.log
+-rw-rw---- 1 my7999 mysql 150 Jan 29 11:40 mysql-bin.000004
+-rw-rw---- 1 my7999 mysql 150 Jan 29 11:09 mysql-bin.000003
+-rw-rw---- 1 my7999 mysql 150 Jan 29 11:07 mysql-bin.000002
+
+下面是rsync远程传输的函数，经过实验可行。
+
+[shixi_binghui@titan27 dbCluster]$ sudo rsync.sh -f 10.73.11.74 -m data1 -d dbatemp/chen.sql -b 50000 -t /data1/ -u my7999
+10.73.11.74
+rsync_exec
+/usr/bin/rsync --password-file=/etc/rsyncd.secrets.passfile --exclude=.* --bwlimit=50000 -arv dba@10.73.11.74::data1/dbatemp/chen.sql /data1/
+receiving file list ... done
+chen.sql 
+
+下面是自己的基础不劳的缘故，所以这里需要认真纠错一下：if 中嵌套if语句是错误的，原因在哪里，这里shell和python不同，需要if和fi进行终止。才算是一个语句的完成。一定要记住有一个if就要有一个fi
+else
+logstatus=$mysql_exec -e "show variables like 'general%'" |grep '\<general_log\>'|awk '{print $2}'
+if [ "$logstatus" == "ON" ]
+then
+if [ "$querylogstatus" == "bad" ]
+then
+ls /data1/dbatemp/querylog || sudo mkdir /data1/dbatemp/querylog && cd /data1/dbatemp/querylog
+sudo mv $querylogpath /data1/dbatemp/querylog/${hostname}_${datetime}.log
+$mysqlha_login -e "flush logs;"
+rsyncquery()
+
+rsync同步的具体操作，可以看一下。当时看了下服务器端的rsync.sh脚本不能远程传输文件。 
+
+[root@mailsvr ~] #  rsync -aSvH --password-file=/etc/sery.pass root@192.168.1.2::data /home/
+
+    解释：
+
+    --password-file=/etc/sery.pass  这段是密码文件，如果不加这段，需要手动输入服务器端定义好的密码。
+
+    root@192.168.1.2::data     这里的：data是服务器端的发布项。
+
+    如果文件比较大，可以使用nohup将进城放在后台执行，
+
+    [root@mailsvr ~] #  nohup rsync -aSvH --password-file=/etc/sery.pass root@192.168.1.2::data /home/ >rsync.log &
+
+    上面的表示将远程机器192.168.1.2机器上发布的data目录，同步到本地机器的/home/目录下。
+
+[shixi_binghui@titan27 shell]$ sudo /usr/bin/rsync --password-file=/etc/rsyncd.secrets.passfile -arv checkStatus.sh root@10.217.86.83::/root/.ssh/ >/data1/dbatemp/shell
+-bash: /data1/dbatemp/shell: Permission denied
+
+这里经过反复测试的，将其改为root/.ssh/就可以了，下面的错误是因为没法链接的错误。所以下面的命令是可行的。
+
+[shixi_binghui@titan27 shell]$ sudo /usr/bin/rsync --password-file=/etc/rsyncd.secrets.passfile -arv /data1/dbatemp/ root@10.217.86.83::root/.ssh/
+rsync: failed to connect to 10.217.86.83: No route to host (113)
+rsync error: error in socket IO (code 10) at clientserver.c(107) [sender=2.6.8]
+
+截至到5点半的时候，代码基本完成现在就剩下对rsync的测试和整体测试以及逻辑测试等。
+
+
+
+
+
